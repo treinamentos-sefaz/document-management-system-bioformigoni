@@ -95,6 +95,68 @@ test('upload rejeita ausência de arquivo e excedente de tamanho', async (t) => 
   assert.equal((await oversizedResponse.json()).error.code, 'FILE_TOO_LARGE');
 });
 
+test('listagem separa documentos por usuário e download preserva bytes', async (t) => {
+  const baseUrl = await startTestServer(t);
+  const bytes = Buffer.from([0, 1, 127, 128, 255]);
+  const aliceUpload = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    headers: { 'x-test-user': 'alice' },
+    body: fileForm(bytes, 'alice.bin'),
+  });
+  assert.equal(aliceUpload.status, 201);
+  const aliceDocument = await aliceUpload.json();
+  assert.equal(aliceDocument.size, bytes.length);
+
+  const bobUpload = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    headers: { 'x-test-user': 'bob' },
+    body: fileForm('documento de bob', 'bob.txt'),
+  });
+  assert.equal(bobUpload.status, 201);
+  const bobDocument = await bobUpload.json();
+  assert.notEqual(aliceDocument.id, bobDocument.id);
+
+  for (const [user, document] of [['alice', aliceDocument], ['bob', bobDocument]]) {
+    const response = await fetch(`${baseUrl}/documents`, {
+      headers: { 'x-test-user': user },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).documents, [document]);
+  }
+
+  const download = await fetch(`${baseUrl}/documents/${aliceDocument.id}/download`, {
+    headers: { 'x-test-user': 'alice' },
+  });
+  assert.equal(download.status, 200);
+  assert.match(download.headers.get('content-disposition'), /attachment;.*filename="alice\.bin"/);
+  assert.deepEqual(Buffer.from(await download.arrayBuffer()), bytes);
+});
+
+test('download de documento inexistente retorna erro 404', async (t) => {
+  const baseUrl = await startTestServer(t);
+  const response = await fetch(`${baseUrl}/documents/inexistente/download`, {
+    headers: { 'x-test-user': 'alice' },
+  });
+
+  assert.equal(response.status, 404);
+  assert.equal((await response.json()).error.code, 'DOCUMENT_NOT_FOUND');
+});
+
+test('endpoints de documentos exigem identificação do usuário', async (t) => {
+  const baseUrl = await startTestServer(t);
+  const requests = [
+    ['/upload', { method: 'POST', body: fileForm('documento') }],
+    ['/documents', {}],
+    ['/documents/inexistente/download', {}],
+  ];
+
+  for (const [route, options] of requests) {
+    const response = await fetch(`${baseUrl}${route}`, options);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error.code, 'UNAUTHENTICATED');
+  }
+});
+
 test('usa o usuário local configurado quando não há middleware de autenticação', async (t) => {
   const baseUrl = await startTestServer(t, {
     localUserId: 'local-test-user',
