@@ -16,6 +16,18 @@ function toPublicDocument(document) {
   };
 }
 
+function requireOwner(owner) {
+  if (typeof owner !== 'string' || owner.trim() === '') {
+    throw createDocumentError(401, 'UNAUTHENTICATED', 'É necessário identificar o usuário.');
+  }
+
+  return owner;
+}
+
+function documentNotFound() {
+  return createDocumentError(404, 'DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
+}
+
 function createDocumentService({ repository }) {
   return {
     async createDocument(file, owner) {
@@ -28,9 +40,11 @@ function createDocumentService({ repository }) {
         throw createDocumentError(400, 'EMPTY_FILE', 'O arquivo não pode estar vazio.');
       }
 
-      if (typeof owner !== 'string' || owner.trim() === '') {
+      try {
+        requireOwner(owner);
+      } catch (error) {
         await repository.removeStoredFile(file.filename);
-        throw createDocumentError(401, 'UNAUTHENTICATED', 'É necessário identificar o usuário.');
+        throw error;
       }
 
       const document = {
@@ -58,25 +72,21 @@ function createDocumentService({ repository }) {
     },
 
     listDocuments(owner) {
-      if (typeof owner !== 'string' || owner.trim() === '') {
-        throw createDocumentError(401, 'UNAUTHENTICATED', 'É necessário identificar o usuário.');
-      }
+      requireOwner(owner);
 
       return repository.listByOwner(owner).map(toPublicDocument);
     },
 
     async getDocumentDownload(id, owner) {
-      if (typeof owner !== 'string' || owner.trim() === '') {
-        throw createDocumentError(401, 'UNAUTHENTICATED', 'É necessário identificar o usuário.');
-      }
+      requireOwner(owner);
 
       const document = repository.findById(id);
       if (!document || document.owner !== owner) {
-        throw createDocumentError(404, 'DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
+        throw documentNotFound();
       }
 
       if (!await repository.isFileAvailable(document.storageName)) {
-        throw createDocumentError(404, 'DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
+        throw documentNotFound();
       }
 
       return {
