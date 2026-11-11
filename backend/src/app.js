@@ -11,7 +11,8 @@ function createApp(options = {}) {
   const config = loadConfig();
   const storageDir = path.resolve(options.storageDir || config.storageDir);
   const maxFileSizeBytes = options.maxFileSizeBytes ?? config.maxFileSizeBytes;
-  const resolveUser = options.resolveUser || ((req) => req.user?.id);
+  const localUserId = options.localUserId ?? config.localUserId;
+  const resolveUser = options.resolveUser || ((req) => req.user?.id || localUserId);
 
   if (!Number.isSafeInteger(maxFileSizeBytes) || maxFileSizeBytes <= 0) {
     throw new Error('DMS_MAX_FILE_SIZE_BYTES deve ser um inteiro positivo.');

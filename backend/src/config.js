@@ -9,12 +9,15 @@ function loadConfig() {
   const maxFileSizeBytes = process.env.DMS_MAX_FILE_SIZE_BYTES === undefined
     ? 10 * 1024 * 1024
     : Number(process.env.DMS_MAX_FILE_SIZE_BYTES);
+  const localUserId = process.env.NODE_ENV === 'production'
+    ? ''
+    : process.env.DMS_LOCAL_USER_ID || 'local-user';
 
   if (!Number.isSafeInteger(maxFileSizeBytes) || maxFileSizeBytes <= 0) {
     throw new Error('DMS_MAX_FILE_SIZE_BYTES deve ser um inteiro positivo.');
   }
 
-  return { maxFileSizeBytes, storageDir };
+  return { localUserId, maxFileSizeBytes, storageDir };
 }
 
 module.exports = { loadConfig };

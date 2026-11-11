@@ -46,7 +46,7 @@ Disponibilizar uma aplicação web simples para que usuários enviem, listem e b
 | RNF-02 | O diretório local padrão é `backend/storage`. | O diretório é criado quando necessário; falha de acesso é tratada como erro, sem sucesso falso. |
 | RNF-03 | Os metadados são mantidos em memória nesta fase. | Ao reiniciar o backend, os registros não são recuperados; não se presume persistência de metadados. |
 | RNF-04 | O tamanho máximo padrão de upload é 10 MiB e pode ser configurado por ambiente. | Arquivos acima do limite retornam `413 Payload Too Large`; a configuração inválida impede a inicialização ou usa o valor padrão documentado, sem ignorar silenciosamente o limite. |
-| RNF-05 | A configuração operacional é feita por variáveis de ambiente. | A porta usa `PORT` (padrão `3000`); o limite usa `DMS_MAX_FILE_SIZE_BYTES` (padrão `10485760`); o diretório usa `DMS_STORAGE_DIR` (padrão `backend/storage`). O diretório configurado deve ser local. |
+| RNF-05 | A configuração operacional é feita por variáveis de ambiente. | A porta usa `PORT` (padrão `3000`); o limite usa `DMS_MAX_FILE_SIZE_BYTES` (padrão `10485760`); o diretório usa `DMS_STORAGE_DIR` (padrão `backend/storage`); o usuário local usa `DMS_LOCAL_USER_ID` (padrão `local-user` fora de produção). O diretório configurado deve ser local. |
 | RNF-06 | Nomes de arquivo fornecidos pelo usuário não determinam o caminho de gravação. | O nome físico é gerado pelo servidor; caminhos e nomes são tratados contra traversal e injeção em cabeçalhos. |
 | RNF-07 | A API é acessada pelo frontend com prefixo `/api` em desenvolvimento. | O proxy do Vite remove `/api` e encaminha as chamadas ao backend local. |
 | RNF-08 | O backend mantém responsabilidades separadas. | Rotas delegam a controllers, controllers a services e services a repositories; camadas internas não dependem de Express. |
@@ -132,7 +132,7 @@ Todas as respostas JSON usam `Content-Type: application/json; charset=utf-8`, sa
 
 ### Identidade e autorização
 
-As operações de usuário dependem de um identificador obtido de contexto confiável do servidor. O mecanismo que cria esse contexto ainda não está definido pelo projeto. A API não deve confiar em `owner` fornecido no corpo, query string ou cabeçalho arbitrário do cliente. Até que a origem da identidade seja decidida, essa dependência é um bloqueio para considerar o isolamento entre usuários funcionalmente completo. Se não houver contexto de usuário, a resposta prevista é `401 Unauthorized` no contrato de implementação.
+As operações de usuário dependem de um identificador obtido de contexto confiável do servidor. Em execução local fora de produção, se não houver middleware de autenticação, o servidor usa a identidade única `DMS_LOCAL_USER_ID` (padrão `local-user`); todos os acessos locais pertencem a esse mesmo usuário. Esse modo é conveniência para desenvolvimento, não autenticação nem isolamento entre usuários. Em produção, a aplicação exige um `req.user.id` fornecido por middleware confiável; se ausente, retorna `401 Unauthorized`. A API não deve confiar em `owner` fornecido no corpo, query string ou cabeçalho arbitrário do cliente.
 
 ## 7. Decisões arquiteturais
 
@@ -146,7 +146,7 @@ As operações de usuário dependem de um identificador obtido de contexto confi
 
 ### Riscos e decisões pendentes
 
-1. **Identidade do usuário:** definir como o contexto confiável será fornecido. O isolamento de dados não pode ser considerado concluído antes dessa decisão; não usar um identificador livre enviado pelo cliente como mecanismo de autenticação.
+1. **Identidade do usuário:** o modo local usa uma identidade única configurável; antes de produção ou uso multiusuário, integrar autenticação que forneça contexto confiável. Não usar um identificador livre enviado pelo cliente como mecanismo de autenticação.
 2. **Perda de metadados:** reiniciar o processo torna os documentos gravados indisponíveis pela API, embora os arquivos possam continuar no disco. Isso é consequência aceita da fase inicial.
 3. **Arquivos órfãos:** quedas entre a gravação e o registro em memória podem deixar arquivos sem metadados. Reconciliação posterior não faz parte deste escopo.
 4. **Limite de tamanho:** 10 MiB é o padrão proposto e deve ser ajustado por ambiente. O produto pode precisar rever esse limite ou estabelecer tipos aceitos.
